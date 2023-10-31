@@ -1,54 +1,66 @@
 package com.hfad.randompet
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
-import android.widget.Button
-import android.widget.ImageView
-import com.bumptech.glide.Glide
-import com.codepath.asynchttpclient.AsyncHttpClient
-import com.codepath.asynchttpclient.callback.JsonHttpResponseHandler
-import okhttp3.Headers
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.hfad.randompet.PokemonAdapter
+import okhttp3.*
+import org.json.JSONObject
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
-    private var petImageURL = ""
+
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var adapter: PokemonAdapter
+    private val pokemonList = mutableListOf<Pokemon>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        getDogImageURL()
-        Log.d("petImageURL", "pet image URL set")
 
-        val button = findViewById<Button>(R.id.petButton)
-        val imageView = findViewById<ImageView>(R.id.petImage)
-        getNextImage(button, imageView)
-    }
-    private fun getDogImageURL(){
-        val client = AsyncHttpClient()
-        client["https://dog.ceo/api/breeds/image/random", object : JsonHttpResponseHandler() {
-            override fun onSuccess(statusCode: Int, headers: Headers, json: JsonHttpResponseHandler.JSON) {
-                Log.d("Dog", "response successful$json")
-                petImageURL = json.jsonObject.getString("message")
-            }
+        recyclerView = findViewById(R.id.recyclerView)
+        adapter = PokemonAdapter(pokemonList)
+        recyclerView.adapter = adapter
+        recyclerView.layoutManager = LinearLayoutManager(this)
 
-            override fun onFailure(
-                statusCode: Int,
-                headers: Headers?,
-                errorResponse: String,
-                throwable: Throwable?
-            ) {
-                Log.d("Dog Error", errorResponse)
-            }
-        }]
-    }
-    private fun getNextImage(button: Button, imageView: ImageView) {
-        button.setOnClickListener {
-            getDogImageURL()
-
-            Glide.with(this)
-                .load(petImageURL)
-                .fitCenter()
-                .into(imageView)
+        // Fetch 20 random Pokémon and update the RecyclerView
+        for (i in 1..20) {
+            fetchRandomPokemonData()
         }
+    }
 
+    private fun fetchRandomPokemonData() {
+        val client = OkHttpClient()
+        val randomPokemonId = (1..807).random() // Generate a random Pokémon ID between 1 and 807
+
+        val url = "https://pokeapi.co/api/v2/pokemon/$randomPokemonId/"
+
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    val json = response.body?.string()
+                    val jsonObject = JSONObject(json)
+                    val imageUrl = jsonObject.getJSONObject("sprites").getString("front_default")
+                    val name = jsonObject.getString("name")
+
+                    runOnUiThread {
+                        // Set a default description or leave it empty
+                        val defaultDescription = "This is the character from Pokemon"
+                        val newPokemon = Pokemon(name, imageUrl, defaultDescription)
+                        pokemonList.add(newPokemon)
+                        adapter.notifyDataSetChanged()
+                    }
+                }
+            }
+
+            override fun onFailure(call: Call, e: IOException) {
+                // Handle API request failure
+            }
+        })
     }
 }
